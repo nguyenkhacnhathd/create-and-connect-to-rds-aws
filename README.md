@@ -1,4 +1,5 @@
-**CREATE AND CONNECT TO RDS AWS** 
+**CREATE AND CONNECT TO RDS AWS**
+
 **How to deploy to your server**
 
 *Step 1: Go to bash of stack service and install packages*
