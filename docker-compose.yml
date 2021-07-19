@@ -1,0 +1,12 @@
+version: '2.4'
+services:
+  stack:
+    image: node:14-alpine
+    volumes:
+      - .:/var/task
+    working_dir: /var/task
+    user: ${COMPOSE_UID:-1000}:${COMPOSE_GID:-1000}
+    environment:
+      - HOME=/tmp
+      - PATH=/var/task/node_modules/.bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    command: [sh]

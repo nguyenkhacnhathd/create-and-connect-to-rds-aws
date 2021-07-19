@@ -1,0 +1,264 @@
+service: db-stack
+
+provider:
+  name: aws
+  runtime: provided
+  stage: ${opt:stage,'dev'}
+  region: ap-northeast-1
+  
+package:
+  excludeDevDependencies: false
+  exclude:
+    - './**'
+
+resources:
+  Resources:
+    VPC:
+      Type: AWS::EC2::VPC
+      Properties:
+        EnableDnsSupport: 'true'
+        EnableDnsHostnames: 'true'
+        CidrBlock: !Ref CidrBlock
+        InstanceTenancy: 'default'
+    InternetGateway:
+      Type: AWS::EC2::InternetGateway
+      Properties:
+        Tags:
+          - Key: Name
+            Value: 'db-internet-gateway'
+    GatewayToInternet:
+      Type: AWS::EC2::VPCGatewayAttachment
+      Properties:
+        VpcId: !Ref VPC
+        InternetGatewayId: !Ref InternetGateway
+    PublicRouteTable:
+      Type: AWS::EC2::RouteTable
+      Properties:
+        VpcId: !Ref VPC
+    PublicSubnet1:
+      Type: AWS::EC2::Subnet
+      Properties:
+        VpcId: !Ref VPC
+        CidrBlock: 10.0.1.0/24
+        AvailabilityZone: {'Fn::Select': [0, {'Fn::GetAZs': ''}]}
+        MapPublicIpOnLaunch: true
+    PublicSubnet2:
+      Type: AWS::EC2::Subnet
+      Properties:
+        VpcId: !Ref VPC
+        CidrBlock: 10.0.2.0/24
+        AvailabilityZone: {'Fn::Select': [1, {'Fn::GetAZs': ''}]}
+        MapPublicIpOnLaunch: true
+    PublicRouteTablePublicSubnet1Assoc:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+        RouteTableId: !Ref PublicRouteTable
+        SubnetId: !Ref PublicSubnet1
+    PublicRouteTablePublicSubnet2Assoc:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+        RouteTableId: !Ref PublicRouteTable
+        SubnetId: !Ref PublicSubnet2
+    InternetGatewayRoute1:
+      Type: AWS::EC2::Route
+      Properties:
+        DestinationCidrBlock: 0.0.0.0/0
+        RouteTableId: !Ref PublicRouteTable
+        GatewayId: !Ref InternetGateway
+    RdsSecurityGroup:
+      Type: AWS::EC2::SecurityGroup
+      Condition: SecurityGroupEnabled
+      Properties:
+        GroupDescription: Security group for RDS
+        VpcId: !Ref VPC
+    RdsSecurityGroupInboundPsql:
+      Type: AWS::EC2::SecurityGroupIngress
+      Condition: SecurityGroupEnabled
+      Properties:
+        GroupId: !Ref RdsSecurityGroup
+        IpProtocol: tcp
+        FromPort: 5432
+        ToPort: 5432
+        CidrIp: 0.0.0.0/0
+    RdsSecurityGroupOutbound:
+      Type: AWS::EC2::SecurityGroupEgress
+      Condition: SecurityGroupEnabled
+      Properties:
+        GroupId: !Ref RdsSecurityGroup
+        IpProtocol: -1
+        FromPort: -1
+        ToPort: -1
+        CidrIp: 0.0.0.0/0
+    Postgres200407:
+      Type: AWS::RDS::DBInstance
+      Condition: PostgresEnabled
+      Properties:
+        DBInstanceClass: !Ref PostgresDBInstanceClass
+        AllocatedStorage: !Ref PostgresAllocatedStorage
+        AvailabilityZone: !If
+          - PgMultiAZEnabled
+          - !Ref 'AWS::NoValue'
+          - ap-northeast-1a
+        BackupRetentionPeriod: !Ref PostgresBackupRetentionPeriod
+        DBName: fm
+        DBParameterGroupName: !Ref ParameterGroup
+        DBSubnetGroupName: !Ref SubnetGroup
+        EnableCloudwatchLogsExports:
+          - postgresql
+          - upgrade
+        Engine: postgres
+        EngineVersion: !Ref PostgresEngineVersion
+        MasterUsername: !Ref PostgresMasterUsername
+        MasterUserPassword: !Ref PostgresMasterUserPassword
+        MonitoringRoleArn: !GetAtt EMRole.Arn
+        MonitoringInterval: 60
+        MultiAZ: !Ref PostgresMultiAZ
+        StorageType: gp2
+        VPCSecurityGroups:
+          - !Ref RdsSecurityGroup
+        PubliclyAccessible: 'true'
+    SubnetGroup:
+      Type: AWS::RDS::DBSubnetGroup
+      Condition: PostgresEnabled
+      Properties:
+        DBSubnetGroupDescription: Subnet group for postgres
+        SubnetIds:
+          - !Ref PublicSubnet1
+          - !Ref PublicSubnet2
+    EMRole:
+      Type: AWS::IAM::Role
+      Condition: PostgresEnabled
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Action:
+                - 'sts:AssumeRole'
+              Effect: Allow
+              Principal:
+                Service:
+                  - monitoring.rds.amazonaws.com
+        Path: /
+        ManagedPolicyArns:
+          - 'arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole'
+    DBReplica200407:
+      Type: AWS::RDS::DBInstance
+      Condition: DBReplicaEnabled
+      DependsOn:
+        - Postgres200407
+      Properties:
+        SourceDBInstanceIdentifier: !Ref Postgres200407
+        DBInstanceClass: !Ref PostgresApiReplicaInstanceClass
+        EnableCloudwatchLogsExports:
+          - postgresql
+          - upgrade
+        StorageType: gp2
+        MonitoringRoleArn: !GetAtt EMRole.Arn
+        MonitoringInterval: 60
+        VPCSecurityGroups:
+          - !Ref RdsSecurityGroup
+    ParameterGroup:
+      Type: AWS::RDS::DBParameterGroup
+      Condition: PostgresEnabled
+      Properties:
+        Description: !Sub 'Parameter group for postgres in stack ${AWS::StackName}'
+        Family: !Sub 'postgres${PostgresEngineVersion}'
+        Parameters:
+          timezone: Asia/Tokyo
+          log_min_duration_statement: !Ref PostgresLogMinDuration
+          hot_standby_feedback: on
+          auto_explain.log_min_duration: !Ref PostgresLogMinDuration
+          auto_explain.log_analyze: true
+          auto_explain.log_buffers: true
+          auto_explain.log_timing: false
+          auto_explain.log_triggers: true
+          auto_explain.log_verbose: true
+          auto_explain.log_format: json
+          auto_explain.log_nested_statements: true
+          auto_explain.sample_rate: 1
+          shared_preload_libraries: auto_explain
+  Conditions:
+    SecurityGroupEnabled: !Equals
+      - 'true'
+      - !Ref EnableSecurityGroup
+    WebEnabled: !Equals
+      - 'true'
+      - !Ref EnableWeb
+    PostgresEnabled: !Equals
+      - 'true'
+      - !Ref EnablePostgres
+    DBReplicaEnabled: !Equals
+      - 'true'
+      - !Ref EnableDBReplica
+    PgMultiAZEnabled: !Equals
+      - 'true'
+      - !Ref PostgresMultiAZ
+  Parameters:
+    CidrBlock:
+      Type: String
+      Default: 10.0.0.0/16
+    EnableSecurityGroup:
+      Type: String
+      AllowedValues:
+        - 'true'
+        - 'false'
+      Default: true
+    EnablePostgres:
+      Type: String
+      AllowedValues:
+        - 'true'
+        - 'false'
+      Default: true
+    EnableDBReplica:
+      Type: String
+      AllowedValues:
+        - 'true'
+        - 'false'
+      Default: true
+    PostgresDBInstanceClass:
+      Description: Postgres instance class
+      Type: String
+      Default: db.t2.micro
+    PostgresApiReplicaInstanceClass:
+      Description: Postgres API replica instance class
+      Type: String
+      Default: db.t2.micro
+    PostgresEngineVersion:
+      Description: Postgres version
+      Type: String
+      Default: '10'
+    PostgresAllocatedStorage:
+      Description: Postgres storage size in GB
+      Type: Number
+      Default: 20
+    PostgresMultiAZ:
+      Description: Enable multi-AZ
+      Type: String
+      Default: false
+      AllowedValues:
+        - true
+        - false
+    PostgresBackupRetentionPeriod:
+      Description: Postgres backup retention period
+      Type: Number
+      Default: 30
+    PostgresLogMinDuration:
+      Type: String
+      Default: 5000
+    PostgresMasterUsername:
+      Description: Postgres master username
+      Type: String
+      Default: flowermeister
+    PostgresMasterUserPassword:
+      Description: Postgres master password
+      Type: String
+      Default: flowermeister
+  Outputs:
+    MasterDBEndpoint:
+      Description: "Endpoint of Master database"
+      Value: !GetAtt Postgres200407.Endpoint.Address
+    ReplicaDBEndpoint:
+      Description: "Endpoint of Replica database"
+      Value: !GetAtt DBReplica200407.Endpoint.Address
+plugins:
+  - '@otani.sg/serverless-cf-parameters'
