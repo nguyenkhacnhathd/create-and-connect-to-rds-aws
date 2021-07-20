@@ -33,7 +33,7 @@ $ serverless deploy --parameter-overrides EnableDBReplica=true
 $ serverless info --verbose
 ```
 
-**How to connect to RDS Database**
+**How to connect to RDS Database with default password is flowermeister**
 ```
 $ docker run -v {path/to/file}:/tmp -it postgres bash
 $ psql -h {MasterDBEndpoint} -p 5432 -U flowermeister -f {path/to/file} fm
