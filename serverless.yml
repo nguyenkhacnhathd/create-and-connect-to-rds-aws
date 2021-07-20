@@ -181,9 +181,6 @@ resources:
     SecurityGroupEnabled: !Equals
       - 'true'
       - !Ref EnableSecurityGroup
-    WebEnabled: !Equals
-      - 'true'
-      - !Ref EnableWeb
     PostgresEnabled: !Equals
       - 'true'
       - !Ref EnablePostgres
