@@ -33,15 +33,15 @@ $ serverless deploy --parameter-overrides EnableDBReplica=true
 $ serverless info --verbose
 ```
 
-**How to connect to EC2 server**
+**How to connect to RDS Database**
 ```
 $ docker run -v {path/to/file}:/tmp -it postgres bash
-$ psql -h {MasterDBEndpoint|ReplicaDBEndpoint} -p 5432 -U flowermeister -f {path/to/file} fm
+$ psql -h {MasterDBEndpoint} -p 5432 -U flowermeister -f {path/to/file} fm
 ```
 
-- set default_transaction_read_only = 0ff to can update fm database in IDE when remote to rds aws
+- set default_transaction_read_only = Off to can update fm database in IDE when remote to rds aws
 ```
-$ psql -h {MasterDBEndpoint|ReplicaDBEndpoint} -p 5432 -U flowermeister fm
+$ psql -h {MasterDBEndpoint} -p 5432 -U flowermeister fm
 $ set default_transaction_read_only = off
 ```
 
