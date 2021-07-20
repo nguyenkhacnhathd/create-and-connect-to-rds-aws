@@ -253,9 +253,9 @@ resources:
   Outputs:
     MasterDBEndpoint:
       Description: "Endpoint of Master database"
-      Value: !GetAtt Postgres200407.Endpoint.Address
+      Value: !If [PostgresEnabled, !GetAtt Postgres200407.Endpoint.Address, '']
     ReplicaDBEndpoint:
       Description: "Endpoint of Replica database"
-      Value: !GetAtt DBReplica200407.Endpoint.Address
+      Value: !If [DBReplicaEnabled, !GetAtt DBReplica200407.Endpoint.Address, '']
 plugins:
   - '@otani.sg/serverless-cf-parameters'
