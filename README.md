@@ -1,6 +1,7 @@
 **CREATE AND CONNECT TO RDS AWS**
 
-**Create docker-compose.override.yml file**
+**Create docker-compose.override.yml file:** use AWS_PROFILE deploy to AWS
+
 ![Alt text](https://github.com/nguyenkhacnhathd/create-and-connect-to-rds-aws/blob/main/docker-compose.override.yml.png?raw=true)
 
 **How to deploy to your server**
@@ -36,14 +37,22 @@ $ serverless deploy --parameter-overrides EnableDBReplica=true
 $ serverless info --verbose
 ```
 
-**How to connect to RDS Database with default password is flowermeister**
+**How to connect to RDS Database and import database with default password is flowermeister**
+
+- for *.sql file :
+```bash
+$ docker run -v {path/to/folder_contains_sql_file}:/tmp -it postgres bash
+$ psql -h {MasterDBEndpoint} -p 5432 -U flowermeister -f {path/to/sql_file} fm
 ```
-$ docker run -v {path/to/file}:/tmp -it postgres bash
-$ psql -h {MasterDBEndpoint} -p 5432 -U flowermeister -f {path/to/file} fm
+
+- for *.zip file :
+```bash
+$ docker run -v {path/to/folder_contains_zip_file}:/tmp -it postgres bash
+$ gunzip -c {path/to/zip_file} | psql -h {MasterDBEndpoint} -p 5432 -U flowermeister fm
 ```
 
 - set default_transaction_read_only = Off to can update fm database in IDE when remote to rds aws
-```
+```bash
 $ psql -h {MasterDBEndpoint} -p 5432 -U flowermeister fm
 $ set default_transaction_read_only = off
 ```
