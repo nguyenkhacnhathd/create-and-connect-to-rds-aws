@@ -1,5 +1,8 @@
 **CREATE AND CONNECT TO RDS AWS**
 
+**Create docker-compose.override.yml file**
+![Alt text](https://github.com/nguyenkhacnhathd/create-and-connect-to-rds-aws/blob/main/docker-compose.override.yml.png?raw=true)
+
 **How to deploy to your server**
 
 *Step 1: Go to bash of stack service and install packages*
